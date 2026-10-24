@@ -7,47 +7,36 @@ export * from './nullTypes'
  * Prisma's `Decimal` (re-exported to users as `Prisma.Decimal`) is decimal.js,
  * whose `valueOf()` returns a *string*. Relational operators (`<`, `>`, `<=`,
  * `>=`) and `Number()` coerce operands with the `"number"` hint, which without
- * this override falls back to `valueOf()`/`toString()` — so
+ * this override falls back to `valueOf()` — so
  * `new Decimal('10.1') < new Decimal('9.99')` compared the strings `'10.1' <
  * '9.99'` and evaluated to `true` (the wrong answer).
  *
  * Overriding `Symbol.toPrimitive` (which takes precedence over `valueOf`)
- * resolves the `"number"` hint to the actual numeric value while leaving the
- * `"string"` and `"default"` hints on the existing string representation, so
- * `toString()`, `toJSON()`, template literals, string concatenation and
- * `JSON.stringify` are all unchanged. Only the comparison contexts that were
- * wrong become numerically correct.
+ * resolves the `"number"` hint to the numeric value of `valueOf()`. The
+ * `"default"` hint keeps `valueOf()` and the `"string"` hint keeps `toString()`,
+ * matching ordinary-object coercion before this override (the two differ only
+ * for negative zero: `'-0'` vs `'0'`). So `toString()`, `toJSON()`, template
+ * literals, string concatenation and `JSON.stringify` are unchanged.
  *
- * The class subclasses `decimal.js` (which constructs internally via
- * `x.constructor`, so subclassing is supported) rather than mutating the shared
- * `decimal.js` prototype, so third-party `import Decimal from 'decimal.js'`
- * usage in the same process is unaffected.
+ * The numeric value is a double, so relational operators are exact only within
+ * double precision (not beyond `Number.MAX_SAFE_INTEGER`, and values past
+ * ~1.8e308 become `Infinity`). Use `lt`/`gt`/`cmp` for exact ordering there. A
+ * BigInt is not returned for large integers because the `"number"` hint is also
+ * used by unary `+`, mixed-number arithmetic and decimal.js internals
+ * (`toNumber()`, `sqrt()`), all of which throw on a BigInt.
+ *
+ * The class subclasses `decimal.js` rather than mutating the shared `decimal.js`
+ * prototype, so third-party `import Decimal from 'decimal.js'` usage in the same
+ * process is unaffected.
  *
  * https://github.com/prisma/prisma/issues/29882
  */
-const MAX_EXACT_INTEGER_DIGITS = 10_000
-
 export class Decimal extends DecimalJS {
-  [Symbol.toPrimitive](hint: 'default' | 'number' | 'string'): number | bigint | string {
+  [Symbol.toPrimitive](hint: 'default' | 'number' | 'string'): number | string {
     if (hint === 'number') {
-      const numeric = Number(this.toString())
-      // Number() is a double: it rounds integers beyond Number.MAX_SAFE_INTEGER
-      // (9007199254740992 and 9007199254740993 collapse to the same double) and
-      // overflows to Infinity past ~1.8e308 (1e1000 and 1e1001 both become
-      // Infinity). For those integers return an exact BigInt instead — JS
-      // relational operators compare Number/BigInt operands exactly, so
-      // `<`/`>`/`<=`/`>=` stay correct for large values too.
-      //
-      // The BigInt path is capped at MAX_EXACT_INTEGER_DIGITS: decimal.js allows
-      // exponents up to 9e15, and expanding such a value with toFixed(0) would
-      // build a string of that many digits. Larger values keep the
-      // (Infinity-valued) double and should be ordered with Decimal methods.
-      if (this.isInteger() && !Number.isSafeInteger(numeric) && this.e < MAX_EXACT_INTEGER_DIGITS) {
-        return BigInt(this.toFixed(0))
-      }
-      return numeric
+      return Number(this.valueOf())
     }
-    return this.toString()
+    return hint === 'default' ? this.valueOf() : this.toString()
   }
 }
 

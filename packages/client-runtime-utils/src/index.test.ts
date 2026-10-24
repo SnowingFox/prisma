@@ -14,31 +14,28 @@ describe('Decimal relational operators', () => {
     expect(d('1.5') > d('1.50')).toBe(false)
   })
 
-  it('keeps large integers distinguishable and finite', () => {
-    const d = (value: string) => new Decimal(value)
-
-    // Integers beyond Number.MAX_SAFE_INTEGER: Number('9007199254740992') and
-    // Number('9007199254740993') are the same double, and Number('1e1000') is
-    // Infinity. Relational operators must still order them exactly.
-    expect(d('9007199254740992') < d('9007199254740993')).toBe(true)
-    expect(d('1e1000') < d('1e1001')).toBe(true)
-    expect(d('1e1000') > d('9e999')).toBe(true)
-    expect(Number.isFinite(Number(d('1e1000')))).toBe(false)
-  })
-
-  it('does not expand integers with huge exponents into BigInt', () => {
-    const d = (value: string) => new Decimal(value)
-
-    // decimal.js accepts exponents up to 9e15. Past the exact-integer digit cap
-    // the numeric hint falls back to the double, so this does not try to build
-    // a 9e15-digit string.
-    expect(d('1e9000000000000000') > d('1')).toBe(true)
-    expect(d('-1e9000000000000000') < d('1')).toBe(true)
-  })
-
   it('keeps Number() coercion numeric', () => {
     expect(Number(new Decimal('10.5'))).toBe(10.5)
     expect(+new Decimal('10.5')).toBe(10.5)
+  })
+
+  it('keeps toNumber(), sqrt() and arithmetic working for large integers', () => {
+    const big = new Decimal('9007199254740993')
+
+    expect(big.toNumber()).toBe(9007199254740992)
+    expect(+big).toBe(9007199254740992)
+    expect((big as unknown as number) - 1).toBe(9007199254740991)
+    expect(big.sqrt().toFixed(3)).toBe('94906265.624')
+    expect(new Decimal('1e1000') > new Decimal('1')).toBe(true)
+  })
+
+  it('keeps negative zero for numeric and default coercion', () => {
+    const negativeZero = new Decimal('-0')
+
+    expect(Object.is(negativeZero.toNumber(), -0)).toBe(true)
+    expect(Object.is(+negativeZero, -0)).toBe(true)
+    expect('' + negativeZero).toBe('-0')
+    expect(`${negativeZero}`).toBe('0')
   })
 
   it('keeps string coercion and JSON output unchanged', () => {
