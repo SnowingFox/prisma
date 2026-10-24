@@ -50,8 +50,6 @@ type StdClient = {
   end(): Promise<void>
   on(event: string, listener: (...args: any[]) => void): unknown
   removeListener(event: string, listener: (...args: any[]) => void): unknown
-  emit(event: string, ...args: any[]): boolean
-  listenerCount(event: string): number
 }
 type TransactionClient = pg.PoolClient
 
@@ -67,21 +65,17 @@ function isPgPoolLike(poolOrConfig: unknown): poolOrConfig is StdClient {
   }
   const candidate = poolOrConfig as Record<string, unknown>
   return (
-    // The full surface the adapter exercises: the query/connect/end trio plus
-    // the EventEmitter members (`on`, `removeListener`, `emit`,
-    // `listenerCount`) and an `options` config object. Requiring the
-    // EventEmitter surface makes it very unlikely a plain `PoolConfig` object
-    // is mistaken for a pool — a config that happens to carry a couple of
-    // pg.Pool-ish keys (e.g. `{ connect: someFn, options: {...} }`, or even
-    // `{ query, connect, end, options }`) would still lack most of these and
-    // be treated as config, not adopted as the pool.
+    // The surface the adapter exercises: the query/connect/end trio, the
+    // `on` / `removeListener` listener methods and an `options` config
+    // object. Requiring the listener methods makes it very unlikely a plain
+    // `PoolConfig` object is mistaken for a pool — a config that happens to
+    // carry a couple of pg.Pool-ish keys (e.g. `{ query, connect, end,
+    // options }`) would still lack them and be treated as config.
     typeof candidate.query === 'function' &&
     typeof candidate.connect === 'function' &&
     typeof candidate.end === 'function' &&
     typeof candidate.on === 'function' &&
     typeof candidate.removeListener === 'function' &&
-    typeof candidate.emit === 'function' &&
-    typeof candidate.listenerCount === 'function' &&
     // The adapter reads `pool.options` (pg.PoolConfig) directly.
     typeof candidate.options === 'object' &&
     candidate.options !== null

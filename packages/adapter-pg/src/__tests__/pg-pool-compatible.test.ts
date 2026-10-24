@@ -42,6 +42,24 @@ describe('PrismaPgAdapterFactory with a pg-compatible pool', () => {
     await adapter.dispose()
   })
 
+  it('accepts a compatible pool that exposes only the listener methods the adapter calls', async () => {
+    const pool = {
+      options: { host: 'localhost', port: 5432 },
+      query: vi.fn(() => Promise.resolve({ command: '', rows: [], fields: [], rowCount: 0, oid: 0 })),
+      connect: vi.fn(() => Promise.resolve({} as pg.PoolClient)),
+      end: vi.fn(() => Promise.resolve()),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    }
+    const factory = new PrismaPgAdapterFactory(pool)
+    const adapter = await factory.connect()
+
+    expect(adapter.underlyingDriver()).toBe(pool)
+    expect(pool.on).toHaveBeenCalledWith('error', expect.any(Function))
+
+    await adapter.dispose()
+  })
+
   it('treats a PoolConfig-shaped object as config, not as an external pool', async () => {
     // A plain object that happens to carry a few pg.Pool-ish keys (query,
     // connect, end, options) but is NOT a real pool must not be mistaken for
