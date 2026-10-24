@@ -31,15 +31,26 @@ export * from './nullTypes'
  * `this.constructor`, which its constructor sets as an own property pointing at
  * the base class. The subclass constructor points it back at the subclass, so
  * results of `plus()`, `abs()`, `Decimal.max()` and so on are Prisma Decimals
- * too. Configuration (`precision`, `rounding`, ...) is still read from the
- * shared base class, as before.
+ * too. Configuration (`precision`, `rounding`, `maxE`, ...) stays on the shared
+ * base class, as before: `Decimal.set()` / `Decimal.config()` forward to it,
+ * because the decimal.js constructor reads `maxE` / `minE` from the base class.
+ * `Decimal(value)` without `new` keeps working, as it does in decimal.js.
  *
  * https://github.com/prisma/prisma/issues/29882
  */
-export class Decimal extends DecimalJS {
+class PrismaDecimal extends DecimalJS {
   constructor(value: DecimalJS.Value) {
     super(value)
     this.constructor = Decimal
+  }
+
+  static override set(config: DecimalJS.Config): DecimalJS.Constructor {
+    DecimalJS.set(config)
+    return Decimal
+  }
+
+  static override config(config: DecimalJS.Config): DecimalJS.Constructor {
+    return this.set(config)
   }
 
   [Symbol.toPrimitive](hint: 'default' | 'number' | 'string'): number | string {
@@ -48,6 +59,25 @@ export class Decimal extends DecimalJS {
     }
     return hint === 'default' ? this.valueOf() : this.toString()
   }
+}
+
+export const Decimal = new Proxy(PrismaDecimal, {
+  apply: (target, _thisArg, [value]: [DecimalJS.Value]) => new target(value),
+}) as typeof PrismaDecimal & ((value: DecimalJS.Value) => DecimalJS)
+// The decimal.js instance type, so decimal.js method results (typed as the base
+// class) stay assignable to `Prisma.Decimal`.
+export type Decimal = DecimalJS
+
+// The decimal.js namespace types (`Prisma.Decimal.Value`, ...), which a class
+// does not inherit.
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export declare namespace Decimal {
+  export type Constructor = typeof Decimal
+  export type Instance = Decimal
+  export type Rounding = DecimalJS.Rounding
+  export type Modulo = DecimalJS.Modulo
+  export type Value = DecimalJS.Value
+  export type Config = DecimalJS.Config
 }
 
 export { empty, join, raw, type RawValue, Sql, default as sql, type Value } from 'sql-template-tag'

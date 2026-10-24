@@ -60,6 +60,36 @@ describe('Decimal relational operators', () => {
     expect(`${negativeZero}`).toBe('0')
   })
 
+  it('can be called without new, like decimal.js', () => {
+    const d = Decimal('10.1')
+
+    expect(d).toBeInstanceOf(Decimal)
+    expect(d < new Decimal('9.99')).toBe(false)
+  })
+
+  it('applies Decimal.set() exponent limits to construction and arithmetic', () => {
+    try {
+      Decimal.set({ maxE: 2, minE: -2 })
+
+      expect(new Decimal('1000').toString()).toBe('Infinity')
+      expect(new Decimal('0.0001').toString()).toBe('0')
+      expect(new Decimal('10').times(100).toString()).toBe('Infinity')
+    } finally {
+      Decimal.set({ defaults: true })
+    }
+  })
+
+  it('exposes the decimal.js namespace types', () => {
+    const value: Decimal.Value = '1.5'
+    const rounding: Decimal.Rounding = Decimal.ROUND_UP
+    const config: Decimal.Config = { rounding }
+    const sum: Decimal = new Decimal('1').plus(1)
+
+    expect(new Decimal(value).toDecimalPlaces(0, rounding).toString()).toBe('2')
+    expect(config.rounding).toBe(Decimal.ROUND_UP)
+    expect(sum.toString()).toBe('2')
+  })
+
   it('keeps string coercion and JSON output unchanged', () => {
     const d = new Decimal('10.10')
 
