@@ -27,11 +27,21 @@ export * from './nullTypes'
  *
  * The class subclasses `decimal.js` rather than mutating the shared `decimal.js`
  * prototype, so third-party `import Decimal from 'decimal.js'` usage in the same
- * process is unaffected.
+ * process is unaffected. decimal.js builds every result through
+ * `this.constructor`, which its constructor sets as an own property pointing at
+ * the base class. The subclass constructor points it back at the subclass, so
+ * results of `plus()`, `abs()`, `Decimal.max()` and so on are Prisma Decimals
+ * too. Configuration (`precision`, `rounding`, ...) is still read from the
+ * shared base class, as before.
  *
  * https://github.com/prisma/prisma/issues/29882
  */
 export class Decimal extends DecimalJS {
+  constructor(value: DecimalJS.Value) {
+    super(value)
+    this.constructor = Decimal
+  }
+
   [Symbol.toPrimitive](hint: 'default' | 'number' | 'string'): number | string {
     if (hint === 'number') {
       return Number(this.valueOf())

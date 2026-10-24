@@ -1,3 +1,4 @@
+import { Decimal as DecimalJS } from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 
 import { Decimal } from './index'
@@ -12,6 +13,27 @@ describe('Decimal relational operators', () => {
     expect(d('9.99') >= d('10.1')).toBe(false)
     expect(d('10.00') <= d('10')).toBe(true)
     expect(d('1.5') > d('1.50')).toBe(false)
+  })
+
+  it('compares results of decimal.js methods numerically', () => {
+    const d = (value: string) => new Decimal(value)
+
+    expect(d('10.5').plus(1) > d('2')).toBe(true)
+    expect(d('20').minus(9.5) > d('2')).toBe(true)
+    expect(d('5.25').times(2) > d('2')).toBe(true)
+    expect(d('21').div(2) > d('2')).toBe(true)
+    expect(d('-10.5').abs() > d('2')).toBe(true)
+    expect(d('-10.5').neg() > d('2')).toBe(true)
+    expect(d('10.5').plus(1) < d('2').plus(0)).toBe(false)
+    expect(Decimal.max('10.5', '2') > d('9')).toBe(true)
+  })
+
+  it('returns Prisma Decimal instances from decimal.js methods', () => {
+    const result = new Decimal('10.5').plus(1)
+
+    expect(result).toBeInstanceOf(Decimal)
+    expect(Decimal.isDecimal(result)).toBe(true)
+    expect(new DecimalJS('10.5').plus(1)).not.toBeInstanceOf(Decimal)
   })
 
   it('keeps Number() coercion numeric', () => {
